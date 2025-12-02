@@ -1,0 +1,86 @@
+name: Update README on Merge
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get merge information
+        id: merge_info
+        run: |
+          # Get the last commit (merge) information
+          COMMIT_SHA=$(git rev-parse HEAD)
+          COMMIT_AUTHOR=$(git log -1 --format='%an')
+          COMMIT_DATE=$(git log -1 --format='%ci')
+          COMMIT_MESSAGE=$(git log -1 --format='%s')
+          
+          # Format the date for display
+          FORMATTED_DATE=$(date -d "$COMMIT_DATE" '+%Y-%m-%d %H:%M:%S')
+          
+          # Calculate time since merge
+          COMMIT_TIMESTAMP=$(date -d "$COMMIT_DATE" +%s)
+          CURRENT_TIMESTAMP=$(date +%s)
+          DIFF_SECONDS=$((CURRENT_TIMESTAMP - COMMIT_TIMESTAMP))
+          
+          HOURS=$((DIFF_SECONDS / 3600))
+          MINUTES=$(((DIFF_SECONDS % 3600) / 60))
+          SECONDS=$((DIFF_SECONDS % 60))
+          
+          echo "commit_sha=${COMMIT_SHA:0:7}" >> $GITHUB_OUTPUT
+          echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          echo "date=$FORMATTED_DATE" >> $GITHUB_OUTPUT
+          echo "message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "time_ago=${HOURS}h ${MINUTES}m ${SECONDS}s ago" >> $GITHUB_OUTPUT
+
+      - name: Update README
+        run: |
+          # Create the merge info section content
+          MERGE_INFO="## 📊 Last Merge Information
+
+          | Field | Value |
+          |-------|-------|
+          | **Last Merger** | ${{ steps.merge_info.outputs.author }} |
+          | **Merge Date** | ${{ steps.merge_info.outputs.date }} |
+          | **Time Since Merge** | ${{ steps.merge_info.outputs.time_ago }} |
+          | **Merge Name/Message** | ${{ steps.merge_info.outputs.message }} |
+          | **Commit SHA** | \`${{ steps.merge_info.outputs.commit_sha }}\` |
+
+          ---
+          *Last updated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+
+          # Check if the merge info section already exists
+          if grep -q "## 📊 Last Merge Information" README.md; then
+            # Replace existing section (from ## 📊 Last Merge Information to the next ## or end of file)
+            awk '
+              /^## 📊 Last Merge Information/ { skip=1; next }
+              /^## / && skip { skip=0 }
+              skip { next }
+              { print }
+            ' README.md > README.tmp
+            mv README.tmp README.md
+          fi
+
+          # Append the new merge info section
+          echo "" >> README.md
+          echo "$MERGE_INFO" >> README.md
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git diff --staged --quiet || git commit -m "📝 Update README with latest merge information"
+          git push
