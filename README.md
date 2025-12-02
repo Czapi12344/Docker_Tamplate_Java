@@ -1,4 +1,4 @@
-# Docker_Tamplate_Java
+# Docker_Template_Java
 
 A full-stack Docker template with React (Vite + Tailwind + DaisyUI + shadcn/ui) frontend and Java Spring Boot backend.
 
